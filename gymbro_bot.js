@@ -1,8 +1,18 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 
 require('dotenv').config();
+
+// Servidor HTTP para Render Web Service (Plan Gratuito $0/mes)
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('🦾 GymBroBot está activo y funcionando 24/7');
+}).listen(PORT, () => {
+    console.log(`🌐 Servidor de salud activo en el puerto ${PORT}`);
+});
 
 // TOKEN OFICIAL DEL BOT
 const token = process.env.TELEGRAM_TOKEN;
