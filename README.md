@@ -47,23 +47,3 @@ TELEGRAM_TOKEN=tu_token_aqui_de_botfather
 ```bash
 npm start
 ```
-
----
-
-## ☁️ Despliegue en Render (24/7 Gratis)
-
-1. Conecta este repositorio en **[Render.com](https://render.com)**.
-2. Crea un nuevo **Background Worker**.
-3. Configura los comandos:
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-4. En la sección **Environment Variables**, añade:
-   - Key: `TELEGRAM_TOKEN`
-   - Value: `Tu token del bot obtenido en @BotFather`
-5. ¡Despliega y tu bot estará disponible las 24 horas!
-
----
-
-## 📝 Licencia
-
-Este proyecto está bajo la licencia MIT. ¡Siéntete libre de contribuir o adaptar la rutina a tus necesidades! 🏋️‍♂️
