@@ -1,0 +1,14 @@
+{
+  "name": "migymbrobot",
+  "version": "1.0.0",
+  "description": "Bot personal de entrenamiento para Telegram",
+  "main": "gymbro_bot.js",
+  "scripts": {
+    "start": "node gymbro_bot.js",
+    "dev": "node gymbro_bot.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.67.0"
+  }
+}

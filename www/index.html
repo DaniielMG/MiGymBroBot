@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FitVision AI - Entrenador Inteligente</title>
+    
+    <!-- Librerías de MediaPipe Pose -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-lime: #ccff00;
+            --cyber-blue: #00d2ff;
+            --glass: rgba(15, 15, 25, 0.7);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #050508;
+            color: white;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* HUD Overlay */
+        .hud-container {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+            background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.4) 100%);
+        }
+
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            pointer-events: auto;
+        }
+
+        /* Video Feed */
+        #video-container {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: black;
+        }
+
+        canvas#output_canvas {
+            height: 100vh;
+            width: 100vw;
+            object-fit: cover;
+            transform: scaleX(-1); /* Efecto espejo */
+        }
+
+        video#input_video {
+            display: none;
+        }
+
+        /* Stats & Counter */
+        .counter-circle {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            border: 8px solid rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: rgba(0,0,0,0.3);
+        }
+
+        .counter-progress {
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            border: 8px solid var(--neon-lime);
+            clip-path: polygon(50% 50%, -50% -50%, 150% -50%); /* Simulación de carga */
+            transition: clip-path 0.3s;
+        }
+
+        .neon-text {
+            color: var(--neon-lime);
+            text-shadow: 0 0 15px rgba(204, 255, 0, 0.5);
+        }
+
+        .scanning-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, var(--cyber-blue), transparent);
+            box-shadow: 0 0 15px var(--cyber-blue);
+            animation: scan 3s linear infinite;
+            z-index: 15;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        .btn-action {
+            @apply px-8 py-4 rounded-2xl font-bold uppercase tracking-widest transition-all active:scale-95;
+            background: linear-gradient(135deg, #1a1a1a, #000);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-start {
+            border-color: var(--neon-lime);
+            box-shadow: 0 0 20px rgba(204, 255, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Video Feed -->
+    <div id="video-container">
+        <video id="input_video" playsinline></video>
+        <canvas id="output_canvas"></canvas>
+        <div class="scanning-line"></div>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div class="hud-container">
+        <!-- Top Bar -->
+        <div class="flex justify-between items-start">
+            <div class="glass-panel p-6">
+                <h1 class="text-2xl font-black tracking-tighter italic">FIT<span class="neon-text">VISION</span></h1>
+                <p class="text-xs opacity-50 uppercase tracking-widest">AI Motion Analysis v1.0</p>
+            </div>
+            
+            <div class="glass-panel p-6 flex gap-8">
+                <div class="text-center">
+                    <p class="text-[10px] uppercase opacity-50">Estado</p>
+                    <p id="status-text" class="font-bold text-red-500">DESCONECTADO</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-[10px] uppercase opacity-50">FPS</p>
+                    <p id="fps-text" class="font-bold neon-text">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Message -->
+        <div id="instruction-panel" class="text-center transition-opacity duration-500">
+            <p class="text-4xl font-black uppercase italic drop-shadow-2xl mb-2">Colócate frente a la cámara</p>
+            <p class="text-xl opacity-70">Asegúrate de que se vea todo tu cuerpo</p>
+        </div>
+
+        <!-- Bottom Bar -->
+        <div class="flex justify-between items-end">
+            <div class="counter-circle glass-panel">
+                <p class="text-[10px] uppercase opacity-50 mb-1">Repeticiones</p>
+                <p id="reps-count" class="text-7xl font-black neon-text">0</p>
+            </div>
+
+            <div class="flex flex-col gap-4 items-end">
+                <div class="glass-panel p-6 w-64">
+                    <p class="text-[10px] uppercase opacity-50 mb-3">Ejercicio detectado</p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                        <p class="text-xl font-bold uppercase">Sentadillas</p>
+                    </div>
+                </div>
+                <button id="start-btn" class="btn-action btn-start">Iniciar Análisis</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const repsText = document.getElementById('reps-count');
+        const statusText = document.getElementById('status-text');
+        const fpsText = document.getElementById('fps-text');
+        const startBtn = document.getElementById('start-btn');
+
+        // Variables de lógica de ejercicio
+        let counter = 0;
+        let stage = null; // 'up' o 'down'
+        let lastFrameTime = 0;
+
+        function onResults(results) {
+            // Calcular FPS
+            const now = performance.now();
+            const fps = Math.round(1000 / (now - lastFrameTime));
+            lastFrameTime = now;
+            fpsText.textContent = fps;
+
+            // Limpiar canvas
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Dibujar el video
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            // Dibujar el esqueleto si hay detecciones
+            if (results.poseLandmarks) {
+                statusText.textContent = "CONECTADO";
+                statusText.className = "font-bold text-green-500";
+
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                    {color: 'rgba(255, 255, 255, 0.5)', lineWidth: 2});
+                drawLandmarks(canvasCtx, results.poseLandmarks,
+                    {color: '#ccff00', lineWidth: 1, radius: 4});
+
+                // --- LÓGICA DE SENTADILLAS ---
+                // Puntos clave: Cadera (24), Rodilla (26), Tobillo (28)
+                const hip = results.poseLandmarks[24];
+                const knee = results.poseLandmarks[26];
+                const ankle = results.poseLandmarks[28];
+
+                if (hip && knee && ankle) {
+                    const angle = calculateAngle(hip, knee, ankle);
+                    
+                    // Lógica de conteo
+                    if (angle > 160) {
+                        stage = "down";
+                    }
+                    if (angle < 90 && stage === 'down') {
+                        stage = "up";
+                        counter++;
+                        repsText.textContent = counter;
+                        playFeedbackSound();
+                    }
+                }
+            } else {
+                statusText.textContent = "BUSCANDO CUERPO...";
+                statusText.className = "font-bold text-yellow-500";
+            }
+            canvasCtx.restore();
+        }
+
+        // Función matemática para calcular el ángulo entre tres puntos
+        function calculateAngle(a, b, c) {
+            const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+            let angle = Math.abs(radians * 180.0 / Math.PI);
+            if (angle > 180.0) angle = 360 - angle;
+            return angle;
+        }
+
+        const pose = new Pose({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+            }
+        });
+
+        pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        pose.onResults(onResults);
+
+        // Nuevo método de cámara más compatible
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720 },
+                    audio: false
+                });
+                videoElement.srcObject = stream;
+                return new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        resolve(videoElement);
+                    };
+                });
+            } catch (e) {
+                alert("Error al acceder a la cámara: " + e.message);
+                throw e;
+            }
+        }
+
+        async function startAnalysis() {
+            await setupCamera();
+            videoElement.play();
+            
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+
+            async function detectionLoop() {
+                await pose.send({image: videoElement});
+                requestAnimationFrame(detectionLoop);
+            }
+            
+            detectionLoop();
+            startBtn.style.display = 'none';
+            document.getElementById('instruction-panel').style.opacity = '0';
+        }
+
+        startBtn.addEventListener('click', startAnalysis);
+
+        // Sonido de feedback
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playFeedbackSound() {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        window.addEventListener('resize', () => {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        });
+
+    </script>
+</body>
+</html>
