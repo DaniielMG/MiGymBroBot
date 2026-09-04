@@ -2,6 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const https = require('https');
 
 require('dotenv').config();
 
@@ -13,6 +14,18 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
     console.log(`🌐 Servidor de salud activo en el puerto ${PORT}`);
 });
+
+// Keep-Alive auto-ping para mantener Render despierto 24/7 sin entrar en suspensión
+const SERVER_URL = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL || 'https://migymbrobot.onrender.com';
+if (SERVER_URL && SERVER_URL.startsWith('http')) {
+    setInterval(() => {
+        https.get(SERVER_URL, (res) => {
+            console.log(`⏰ Keep-alive ping enviado a ${SERVER_URL} (Status: ${res.statusCode})`);
+        }).on('error', (err) => {
+            console.error('⚠️ Error en keep-alive ping:', err.message);
+        });
+    }, 10 * 60 * 1000); // Cada 10 minutos
+}
 
 // TOKEN OFICIAL DEL BOT
 const token = process.env.TELEGRAM_TOKEN;
